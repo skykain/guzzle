@@ -203,7 +203,7 @@ This setting can be set to any of the following types:
   .. code-block:: php
 
       // You can send requests that use a stream resource as the body.
-      $resource = fopen('http://httpbin.org', 'r');
+      $resource = \GuzzleHttp\Psr7\Utils::tryFopen('http://httpbin.org', 'r');
       $client->request('PUT', '/put', ['body' => $resource]);
 
 - ``Psr\Http\Message\StreamInterface``
@@ -646,6 +646,8 @@ the following key value pairs:
 
 .. code-block:: php
 
+    use GuzzleHttp\Psr7;
+
     $client->request('POST', '/post', [
         'multipart' => [
             [
@@ -655,11 +657,11 @@ the following key value pairs:
             ],
             [
                 'name'     => 'baz',
-                'contents' => fopen('/path/to/file', 'r')
+                'contents' => Psr7\Utils::tryFopen('/path/to/file', 'r')
             ],
             [
                 'name'     => 'qux',
-                'contents' => fopen('/path/to/file', 'r'),
+                'contents' => Psr7\Utils::tryFopen('/path/to/file', 'r'),
                 'filename' => 'custom_filename.txt'
             ],
         ]
@@ -803,7 +805,7 @@ Pass a string to specify a proxy for all protocols.
 
 .. code-block:: php
 
-    $client->request('GET', '/', ['proxy' => 'tcp://localhost:8125']);
+    $client->request('GET', '/', ['proxy' => 'http://localhost:8125']);
 
 Pass an associative array to specify HTTP proxies for specific URI schemes
 (i.e., "http", "https"). Provide a ``no`` key value pair to provide a list of
@@ -821,8 +823,8 @@ host names that should not be proxied to.
 
     $client->request('GET', '/', [
         'proxy' => [
-            'http'  => 'tcp://localhost:8125', // Use this proxy with "http"
-            'https' => 'tcp://localhost:9124', // Use this proxy with "https",
+            'http'  => 'http://localhost:8125', // Use this proxy with "http"
+            'https' => 'http://localhost:9124', // Use this proxy with "https",
             'no' => ['.mit.edu', 'foo.com']    // Don't use a proxy with these
         ]
     ]);
@@ -907,7 +909,7 @@ Pass a resource returned from ``fopen()`` to write the response to a PHP stream:
 
 .. code-block:: php
 
-    $resource = fopen('/path/to/file', 'w');
+    $resource = \GuzzleHttp\Psr7\Utils::tryFopen('/path/to/file', 'w');
     $client->request('GET', '/stream/20', ['sink' => $resource]);
 
 Pass a ``Psr\Http\Message\StreamInterface`` object to stream the response
@@ -915,8 +917,8 @@ body to an open PSR-7 stream.
 
 .. code-block:: php
 
-    $resource = fopen('/path/to/file', 'w');
-    $stream = GuzzleHttp\Psr7\Utils::streamFor($resource);
+    $resource = \GuzzleHttp\Psr7\Utils::tryFopen('/path/to/file', 'w');
+    $stream = \GuzzleHttp\Psr7\Utils::streamFor($resource);
     $client->request('GET', '/stream/20', ['save_to' => $stream]);
 
 .. note::

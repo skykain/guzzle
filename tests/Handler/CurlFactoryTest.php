@@ -198,6 +198,29 @@ class CurlFactoryTest extends TestCase
         }
     }
 
+    public function testUsesProxy()
+    {
+        Server::flush();
+        Server::enqueue([
+            new Psr7\Response(200, [
+                'Foo' => 'Bar',
+                'Baz' => 'bam',
+                'Content-Length' => 2,
+            ], 'hi')
+        ]);
+
+        $handler = new Handler\CurlMultiHandler();
+        $request = new Psr7\Request('GET', 'http://www.example.com', [], null, '1.0');
+        $promise = $handler($request, [
+            'proxy' => Server::$url
+        ]);
+        $response = $promise->wait();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('Bar', $response->getHeaderLine('Foo'));
+        self::assertSame('2', $response->getHeaderLine('Content-Length'));
+        self::assertSame('hi', (string) $response->getBody());
+    }
+
     public function testValidatesSslKey()
     {
         $f = new Handler\CurlFactory(3);
@@ -252,6 +275,34 @@ class CurlFactoryTest extends TestCase
         $f->create(new Psr7\Request('GET', Server::$url), ['cert' => [__FILE__, 'test']]);
         self::assertEquals(__FILE__, $_SERVER['_curl'][\CURLOPT_SSLCERT]);
         self::assertEquals('test', $_SERVER['_curl'][\CURLOPT_SSLCERTPASSWD]);
+    }
+
+    public function testAddsDerCert()
+    {
+        $certFile = tempnam(sys_get_temp_dir(), "mock_test_cert");
+        rename($certFile, $certFile .= '.der');
+        try {
+            $f = new Handler\CurlFactory(3);
+            $f->create(new Psr7\Request('GET', Server::$url), ['cert' => $certFile]);
+            self::assertArrayHasKey(\CURLOPT_SSLCERTTYPE, $_SERVER['_curl']);
+            self::assertEquals('DER', $_SERVER['_curl'][\CURLOPT_SSLCERTTYPE]);
+        } finally {
+            @\unlink($certFile);
+        }
+    }
+
+    public function testAddsP12Cert()
+    {
+        $certFile = tempnam(sys_get_temp_dir(), "mock_test_cert");
+        rename($certFile, $certFile .= '.p12');
+        try {
+            $f = new Handler\CurlFactory(3);
+            $f->create(new Psr7\Request('GET', Server::$url), ['cert' => $certFile]);
+            self::assertArrayHasKey(\CURLOPT_SSLCERTTYPE, $_SERVER['_curl']);
+            self::assertEquals('P12', $_SERVER['_curl'][\CURLOPT_SSLCERTTYPE]);
+        } finally {
+            @\unlink($certFile);
+        }
     }
 
     public function testValidatesProgress()
@@ -826,5 +877,25 @@ class CurlFactoryTest extends TestCase
             $actualLength += \strlen($chunk);
         }
         self::assertSame($expectedLength, $actualLength);
+    }
+
+    public function testHandlesGarbageHttpServerGracefully()
+    {
+        $a = new Handler\CurlMultiHandler();
+
+        $this->expectException(RequestException::class);
+        $this->expectExceptionMessage('cURL error 1: Received HTTP/0.9 when not allowed');
+
+        $a(new Psr7\Request('GET', Server::$url . 'guzzle-server/garbage'), [])->wait();
+    }
+
+    public function testHandlesInvalidStatusCodeGracefully()
+    {
+        $a = new Handler\CurlMultiHandler();
+
+        $this->expectException(RequestException::class);
+        $this->expectExceptionMessage('An error was encountered while creating the response');
+
+        $a(new Psr7\Request('GET', Server::$url . 'guzzle-server/bad-status'), [])->wait();
     }
 }
